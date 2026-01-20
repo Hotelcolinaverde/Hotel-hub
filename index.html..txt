@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hub Colina Verde</title>
+    <style>
+        :root { --verde: #5a7d32; --bg: #121212; }
+        body { margin: 0; font-family: 'Segoe UI', sans-serif; background: var(--bg); color: white; height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
+        .slideshow { position: fixed; width: 100%; height: 100%; z-index: -1; opacity: 0.4; background: #000; }
+        .slideshow img { position: absolute; width: 100%; height: 100%; object-fit: cover; opacity: 0; transition: 1.5s; }
+        .slideshow img.active { opacity: 1; }
+        .main { flex: 1; display: grid; grid-template-columns: 1fr 1fr; padding: 40px; gap: 40px; }
+        .clock { font-size: 6rem; font-weight: bold; color: var(--verde); text-shadow: 2px 2px 10px rgba(0,0,0,0.5); }
+        .info-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; align-content: center; }
+        .card { border-left: 4px solid var(--verde); padding: 15px; background: rgba(255,255,255,0.05); border-radius: 0 10px 10px 0; }
+        .card h4 { margin: 0; font-size: 0.8rem; color: var(--verde); text-transform: uppercase; }
+        .footer { background: rgba(0,0,0,0.9); padding: 20px 40px; border-top: 2px solid var(--verde); position: relative; }
+        .agenda { display: grid; grid-template-columns: repeat(7, 1fr); gap: 10px; margin-top: 10px; }
+        .day { text-align: center; padding: 10px; border-radius: 8px; background: #222; border: 1px solid #444; }
+        .day.today { border-color: var(--verde); background: rgba(90, 125, 50, 0.3); }
+        .logo-box { position: absolute; bottom: 15px; right: 20px; width: 100px; height: 100px; background: white; border-radius: 50%; padding: 8px; box-shadow: 0 0 15px rgba(0,0,0,0.5); }
+        .logo-box img { width: 100%; height: 100%; object-fit: contain; }
+    </style>
+</head>
+<body>
+    <div class="slideshow" id="slides">
+        <img src="https://i.imgur.com/vHqB7Vj.png" class="active">
+        <img src="https://i.imgur.com/6U8Y1O0.png">
+        <img src="https://i.imgur.com/eE8XFpW.png">
+    </div>
+
+    <div class="main">
+        <div>
+            <div class="clock" id="clock">00:00</div>
+            <div id="dataExtenso" style="font-size: 1.5rem; margin-bottom: 20px;"></div>
+            <div style="background: rgba(0,0,0,0.6); padding: 15px; border-radius: 10px; border: 1px solid var(--verde); width: fit-content;">
+                <b style="color: var(--verde)">Concórdia - SC</b><br>
+                <span id="temp">Calculando clima...</span>
+            </div>
+        </div>
+        <div class="info-grid">
+            <div class="card"><h4>Café</h4><p id="cafe">--</p></div>
+            <div class="card"><h4>Check-out</h4><p id="checkout">--</p></div>
+            <div class="card"><h4>Wi-Fi</h4><p id="wifi">--</p></div>
+            <div class="card"><h4>Quarto</h4><p id="q-num">--</p></div>
+        </div>
+    </div>
+
+    <div class="footer">
+        <div style="font-weight: bold; color: var(--verde); letter-spacing: 1px;">AGENDA SEMANAL</div>
+        <div class="agenda" id="agendaGrid"></div>
+        <div id="aviso" style="margin-top: 15px; color: #ccc; font-style: italic;"></div>
+        <div class="logo-box"><img src="https://i.imgur.com/6S3Mv5k.png"></div>
+    </div>
+
+    <script>
+        const linkCSV = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vRhdfZq6Y9m3uAWpAbqi9WGWNb9U_hIlHxr-I2c8S0vgWlH1JSFNiEghuvVb7y-Hk-BkmUKChNGuOUa/pub?output=csv';
+
+        function updateTime() {
+            const n = new Date();
+            document.getElementById('clock').innerText = n.toLocaleTimeString('pt-BR', {hour:'2-digit', minute:'2-digit'});
+            document.getElementById('dataExtenso').innerText = n.toLocaleDateString('pt-BR', {weekday:'long', day:'numeric', month:'long'});
+            
+            const grid = document.getElementById('agendaGrid');
+            grid.innerHTML = '';
+            let d = new Date(n);
+            d.setDate(n.getDate() - n.getDay());
+            for(let i=0; i<7; i++) {
+                const hoje = d.toDateString() === n.toDateString();
+                grid.innerHTML += `<div class="day ${hoje?'today':''}">
+                    <span style="font-size:0.7rem; display:block; color:#888;">${d.toLocaleDateString('pt-BR',{weekday:'short'})}</span>
+                    <b>${d.getDate()}</b>
+                </div>`;
+                d.setDate(d.getDate() + 1);
+            }
+        }
+
+        async function getData() {
+            const urlP = new URLSearchParams(window.location.search);
+            const q = urlP.get('quarto') || "101";
+            try {
+                const r = await fetch(linkCSV + "&t=" + new Date().getTime());
+                const t = await r.text();
+                const rows = t.split(/\r?\n/);
+                for(let i=1; i<rows.length; i++) {
+                    const c = rows[i].split(/[;,]/).map(x => x.replace(/"/g,'').trim());
+                    if(c[0] === q) {
+                        document.getElementById('q-num').innerText = c[0];
+                        document.getElementById('cafe').innerText = c[1];
+                        document.getElementById('checkout').innerText = c[2];
+                        document.getElementById('wifi').innerText = c[3];
+                        document.getElementById('aviso').innerText = "${c[4]}";
+                        return;
+                    }
+                }
+            } catch(e) { console.error("Erro na planilha:", e); }
+        }
+
+        let sIdx = 0;
+        const sImg = document.querySelectorAll('.slideshow img');
+        setInterval(() => {
+            sImg[sIdx].classList.remove('active');
+            sIdx = (sIdx + 1) % sImg.length;
+            sImg[sIdx].classList.add('active');
+        }, 10000);
+
+        setInterval(updateTime, 1000); updateTime();
+        getData(); setInterval(getData, 30000);
+    </script>
+</body>
+</html>
